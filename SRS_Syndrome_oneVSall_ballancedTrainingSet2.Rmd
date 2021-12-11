@@ -1,0 +1,939 @@
+---
+title: "SRS_Syndrome_oneVSall"
+author: "Xin Niu"
+date: "11/28/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+#rm(list=ls())
+## load gglasso library
+#library(gglasso)
+## load data set
+#data(colon)
+## define group index
+#group <- rep(1:20,each=5)
+## 5-fold cross validation using group lasso
+## penalized logisitic regression
+#cv <- cv.gglasso(x=colon$x, y=colon$y, group=group, loss="logit",
+#pred.loss="misclass", lambda.factor=0.05, nfolds=5)
+## the coefficients at lambda = lambda.1se
+#pre = coef(cv$gglasso.fit, s = cv$lambda.1se)
+```
+
+
+```{r}
+#rm(list=ls())
+##setwd("~/Dropbox/Project_SRS")
+#
+##library(glmnet)
+#library(gglasso)
+##library(grplasso)
+##library(xlsx)
+#library(foreign)
+#library(dplyr) # for ballanced subsampling.
+#
+#
+####data=read.spss("MultiSyndrome_Zoes_Dataset_Pruned_UpdatedWSIQ_Aug2018_DEID2.sav", to.data.frame=TRUE)
+#
+## data without ASD:
+#data=read.spss("MultiSyndrome_Zoes_Dataset_Pruned_UpdatedWSIQ_NoASD_No_HV (controls).sav", to.data.frame=TRUE)
+##DV:  DX_NUM, IV:SRS_Adj01,..., SRS_Adj65, Covariates: Sex, SRSAge
+#col.name = colnames(data)
+##ind<-c(10:74,2,3,6)
+#data2 <- data[, c(col.name[grep("^SRS_Adj", col.name)], "Sex", "SRSAge", "FSIQ_DQ", "DX_NUM")]
+#
+#print(dim(data2))
+#temp=unique(data2$DX_NUM)
+##print(temp)
+#
+#ind_asd <- which(data2$DX_NUM == "ASD")
+#ind_ds <- which(data2$DX_NUM == "DS")
+#ind_sms <- which(data2$DX_NUM == "SMS")
+#ind_ws <- which(data2$DX_NUM == "WS")
+#ind_1x <- which(data2$DX_NUM == "+1X")
+#ind_1x1y <- which(data2$DX_NUM == "+1X+1Y")
+#ind_1y <- which(data2$DX_NUM == "+1Y")
+#
+#
+#table(data2$DX_NUM)
+#
+##ind_23x <- which(data2$DX_NUM == temp[7])
+##data3 <- data2[c(ind_asd, ind_ds, ind_sms, ind_ws, ind_1x, ind_23x, ind_1x1y, ind_1y), ]
+##label = c("ASD", "DS", "SMS", "WS", "+1X", "+2/3X", "+1X+1Y", "+1Y")
+##label = c(as.character(temp[2]), as.character(temp[8]), as.character(temp[9]), 
+##          as.character(temp[1]), as.character(temp[4]), as.character(temp[7]), 
+##          as.character(temp[5]), as.character(temp[6]))
+#
+#ind_23x <- which(data2$DX_NUM == temp[5])
+#
+#data3 <- data2[c(ind_ds, ind_sms, ind_ws, ind_1x, ind_23x, ind_1x1y, ind_1y), ]
+#
+#label = c(as.character(temp[2]), as.character(temp[1]), as.character(temp[3]), as.character(temp[4]),  
+#          as.character(temp[7]), as.character(temp[5]), as.character(temp[6]))
+#
+#data3 = data3[complete.cases(data3), ]
+#table(data3$DX_NUM)
+##nsize  = dim(data3)[1]
+#
+#compute.acc = function(y, yhat) {
+#    y = as.numeric(y)
+#    yhat = as.numeric(yhat)
+#    
+#    acc <- sum(y == yhat, na.rm = TRUE) / length(y)
+#    
+#    ylevel = sort(unique(yhat), decreasing = F)
+#    
+#    if (length(ylevel) == 2) {
+#        # asuming ylevel = c(0, 1)
+#        sensi <- sum(y == yhat & y == ylevel[2], na.rm = TRUE) / sum(y == ylevel[2], na.rm = TRUE)
+#        speci <- sum(y == yhat & y == ylevel[1], na.rm = TRUE) / sum(y == ylevel[1], na.rm = TRUE)
+#    }
+#    else if (length(ylevel==1)&max(y)==ylevel){
+#        print('compute.acc: 1 level of yhat')
+#        sensi <- 1
+#        speci <- NaN
+#    }
+#    else if (length(ylevel==1)&min(y)==ylevel){
+#        print('compute.acc: 1 level of yhat')
+#        sensi <- NaN
+#        speci <- 1
+#    }
+#    else {
+#        print('compute.acc: more than 2 levels of yhat')
+#        sensi <- NaN
+#        speci <- NaN
+#    }
+#    
+#    temp <- c(acc, sensi, speci)
+#    return(temp)
+#}
+
+```
+
+
+```{r}
+rm(list=ls())
+#setwd("~/Dropbox/Project_SRS")
+
+#library(glmnet)
+library(gglasso)
+#library(grplasso)
+#library(xlsx)
+library(foreign)
+library(dplyr) # for ballanced subsampling.
+
+
+## data without ASD and updated wrong samples removed
+data=read.csv("SRS_For_Zoe_Xin_April20201.csv")
+#DV:  DX_NUM, IV:SRS_Adj01,..., SRS_Adj65, Covariates: Sex, SRSAge
+col.name = colnames(data)
+#ind<-c(10:74,2,3,6)
+data2 <- data[, c(col.name[grep("^SRS_Adj", col.name)], "Sex_Num_0F1M", "SRSAge", "IQ_as_Tscore", "DX")]
+data2$Sex = data2$Sex_Num_0F1M
+data2$Sex_Num_0F1M = NULL
+#IQ must be in 2nd last column
+data2$FSIQ_DQ = data2$IQ_as_Tscore
+data2$IQ_as_Tscore = NULL
+# DX_NUM must be in last column
+data2$DX_NUM = data2$DX
+data2$DX = NULL
+
+print(dim(data2))
+temp=unique(data2$DX_NUM)
+#print(temp)
+
+ind_asd <- which(data2$DX_NUM == "ASD")
+ind_ds <- which(data2$DX_NUM == "DS")
+ind_sms <- which(data2$DX_NUM == "SMS")
+ind_ws <- which(data2$DX_NUM == "WS")
+ind_1x <- which(data2$DX_NUM == "PLUSX")
+ind_1x1y <- which(data2$DX_NUM == "PLUSXY")
+ind_1y <- which(data2$DX_NUM == "PLUSY")
+ind_23x = which(data2$DX_NUM == 'PLUSXX')
+
+table(data2$DX_NUM)
+data3 <- data2[c(ind_ds, ind_sms, ind_ws, ind_1x, ind_23x, ind_1x1y, ind_1y), ]
+
+label = c(as.character(temp[2]), as.character(temp[1]), as.character(temp[3]), as.character(temp[4]),  
+          as.character(temp[7]), as.character(temp[5]), as.character(temp[6]))
+
+data3 = data3[complete.cases(data3), ]
+table(data3$DX_NUM)
+#nsize  = dim(data3)[1]
+
+compute.acc = function(y, yhat) {
+    y = as.numeric(y)
+    yhat = as.numeric(yhat)
+    
+    acc <- sum(y == yhat, na.rm = TRUE) / length(y)
+    
+    ylevel = sort(unique(yhat), decreasing = F)
+    
+    if (length(ylevel) == 2) {
+        # asuming ylevel = c(0, 1)
+        sensi <- sum(y == yhat & y == ylevel[2], na.rm = TRUE) / sum(y == ylevel[2], na.rm = TRUE)
+        speci <- sum(y == yhat & y == ylevel[1], na.rm = TRUE) / sum(y == ylevel[1], na.rm = TRUE)
+    }
+    else if (length(ylevel==1)&max(y)==ylevel){
+        print('compute.acc: 1 level of yhat')
+        sensi <- 1
+        speci <- NaN
+    }
+    else if (length(ylevel==1)&min(y)==ylevel){
+        print('compute.acc: 1 level of yhat')
+        sensi <- NaN
+        speci <- 1
+    }
+    else {
+        print('compute.acc: more than 2 levels of yhat')
+        sensi <- NaN
+        speci <- NaN
+    }
+    
+    temp <- c(acc, sensi, speci)
+    return(temp)
+}
+
+```
+
+# classification with 65 item scores:
+```{r}
+library(caret)
+library(ROSE) # ovun.sample
+library(glmnet)
+
+lambda.factor = .01
+#oversample.p = .6
+nfolds = 5
+with.iq = F
+#with.iq = T
+
+
+result = as.data.frame(matrix(0, length(label)+1, 3*nfolds+1))
+colnames(result) = c("Syndrome", rep(c("accuracy", "sensitivity", "specitivity"), each = nfolds))
+result[1,-1] = rep(1:nfolds, 3) 
+result$Syndrome = c('CV', label)
+
+result.mean = as.data.frame(matrix(0, length(label), 4))
+colnames(result.mean) = c("Syndrome", "accuracy", "sensitivity", "specitivity")
+result.mean$Syndrome =  label
+
+if (with.iq == T){
+    x.index = 1:68
+}else{
+    x.index = 1:67 # without IQ:
+}
+
+coefs_list = vector("list", length = length(label))
+
+
+column.idx = 1:length(x.index)
+#group = rep(6, 1, length(x.index))
+group = seq(from = 6, to = length(x.index)+5, by=1)
+print(group)
+
+awareness.idx = c(2, 7, 25, 32, 45, 52, 54, 56)
+cognition.idx = c(5, 10, 15, 17, 30, 40, 42, 44, 48, 58, 59, 62)
+communication.idx = c(12, 13, 16, 18, 19, 21, 22, 26, 33, 35:38, 41, 46, 47, 51, 53, 55, 57, 60, 61)
+motivation.idx = c(1, 3, 6, 9, 11, 23, 27, 34, 43, 64, 65)
+Restricted.idx = c(4, 8, 14, 20, 24, 28, 29, 31, 39, 49, 50, 63)
+
+group[column.idx %in% awareness.idx] = 1
+group[column.idx %in% cognition.idx] = 2
+group[column.idx %in% communication.idx] = 3
+group[column.idx %in% motivation.idx] = 4
+group[column.idx %in% Restricted.idx] = 5
+
+group.others = group[group>5]
+group.others = seq(from = 6, to = 5+length(group.others), by = 1)
+group[group>5] = group.others
+
+group.sort = sort(group, index.return = TRUE)
+
+```
+
+
+```{r}
+#data.heatmap = matrix(data = NA, nrow = 65, ncol = length(label))
+#rownames(data.heatmap) = colnames(data3)[1:65]
+#colnames(data.heatmap) = label
+
+for (i in 1:length(label)){
+    
+    i_label = label[i]
+    print(i_label)
+    ######   define different groups  #####
+    y.ind = which(data3$DX_NUM == i_label)
+    num.y = length(y.ind)
+    
+    data.1 = data3[y.ind, ]
+    data.0 = data3[-y.ind,]
+    size.0 = ceiling(num.y/length(label))
+    
+    
+    #set.seed(31)
+    #cv.fold = createFolds(data4$y, k = nfolds)
+    acc = NULL
+    coefs.cv = vector('list', length = nfolds)
+    
+    # regress out iq, age, gender for each group:
+    #for (i.pred in 1:65){
+    #    outcome <- colnames(data.1)[i.pred]
+    #    if (length(unique(data.1$Sex))==1){
+    #      variables <- c("SRSAge", "FSIQ_DQ")
+    #    } else {
+    #      variables <- c("Sex", "SRSAge", "FSIQ_DQ")
+    #    }
+    #    
+    #    # our modeling effort, 
+    #    # fully parameterized!
+    #    f <- as.formula(
+    #      paste(outcome, 
+    #            paste(variables, collapse = " + "), 
+    #            sep = " ~ "))
+    #    
+    #    model <- lm(f, data = data.1)
+    #    res = resid(model)
+    #    data.heatmap[i.pred, i] = mean(res) 
+    #}
+    
+    
+    for (i.cv in 1:nfolds) {
+        print(i.cv)
+        
+        # resample by disorder group to make each group has equal size
+        set.seed(i.cv)
+        data.0 <- data.0%>%
+            group_by(DX_NUM)%>%
+            sample_n(size = size.0, replace = T)%>%
+            as.data.frame()
+        
+        data.1$y = 1
+        data.0$y = -1
+        data4 = rbind(data.1, data.0)
+        print(data4)
+        
+        ind <- createDataPartition(data4$y, p=0.70)
+        
+        data.train <- data4[ind$Resample1, ]
+        data.test <- data4[-ind$Resample1, ]
+        #data.train <- data4[cv.fold[[i.cv]], ]
+        #data.test <- data4[cv.fold[[i.cv]], ]
+        
+        #table(data.train$DX_NUM)
+        table(data.train$y)
+        table(data.test$y)
+        
+        # #Use function ovun.sample() to generate balanced data
+        #data1.imp.bal<-ovun.sample(y ~ ., data=data.train, method="both", p=oversample.p, seed=1342)$data
+        
+        #y.train<-data1.imp.bal$y
+        #take 1:67 which includes items 1 to 65 plus sex and age
+        #x.train<-data1.imp.bal[, x.index]
+        
+        y.train = data.train$y
+        y.train<-as.matrix(y.train)
+        
+        x.train = data.train[, x.index]
+        x.train$Sex <- as.numeric(x.train$Sex)
+        x.train<-as.matrix(x.train)
+        
+        y.test<-data.test$y
+        y.test<-as.matrix(y.test)
+        #take 1:67 which includes items 1 to 65 plus sex and age
+        x.test<-data.test[, x.index]
+        x.test$Sex <- as.numeric(x.test$Sex)
+        x.test<-as.matrix(x.test)
+        
+        #print(table(y.train))
+        
+        # group lasso:
+        x.train.sort = x.train[, group.sort$ix]
+        
+        set.seed(123)
+        cv.fit =  cv.gglasso(x.train.sort, y.train, nfolds=5, group = group.sort$x, loss="logit", pred.loss="misclass", lambda.factor = lambda.factor)
+        #cv.fit =  grplasso(x.train, y.train, index = group, lambda = 1e-2)
+        #print(cv.fit)
+        #print('cv.gglasso finished..')
+        x.test.sort = x.test[, group.sort$ix]
+        yhat = predict(cv.fit, s=cv.fit$lambda.1se, newx=x.test.sort, type="class")
+        
+        ## lasso:
+        #set.seed(123)
+        #cv.fit =  cv.glmnet(x.train, y.train, nfolds=5, family = "binomial", type.measure = "class", alpha = 1)
+        #yhat = predict(cv.fit, s=cv.fit$lambda.1se, newx=x.test,type="class")
+        
+       
+        acc.cv = compute.acc(yhat, y.test)
+        acc = rbind(acc, acc.cv)
+        
+        result[which(result$Syndrome == i_label), which(result[1,] == i.cv)] = acc.cv
+        
+        # grplasso:
+        #coefs = coef(cv.fit$gglasso.fit, s = cv.fit$lambda.1se)
+        # this works for both lasso and gglasso:
+        coefs = coef(cv.fit, s = cv.fit$lambda.1se)
+        
+        coefs.cv[[i.cv]] = coefs
+        
+    }
+    
+    result.mean[which(result.mean$Syndrome == i_label), 'accuracy'] = mean(acc[,1], na.rm = TRUE)
+    result.mean[which(result.mean$Syndrome == i_label), 'sensitivity'] = mean(acc[,2], na.rm = TRUE)
+    result.mean[which(result.mean$Syndrome == i_label), 'specitivity'] = mean(acc[,3], na.rm = TRUE)
+    
+    coefs.cv = do.call(cbind, coefs.cv)
+    coefs.cv = rbind(1:nfolds, coefs.cv)
+    rownames(coefs.cv)[1] = 'CV'
+    coefs_list[[i]] = coefs.cv
+
+}
+
+result_coefs = do.call(cbind, coefs_list)
+```
+
+
+## Save results:
+
+```{r}
+
+#file.name = 'classification_one_vs_all_gglasso_65_ballancedgroup_iq_'
+file.name = 'classification_noasd_one_vs_all_gglasso_65_ballancedgroup_iq_'
+
+print(result)
+write.table(result.mean, paste(file.name, with.iq, '_mean_', 
+                               #toString(oversample.p), '_', 
+                               toString(lambda.factor), '.csv', sep = ''), sep = ',', row.names = F)
+
+write.table(result, paste(file.name, with.iq, '_cv_', 
+                          #toString(oversample.p), '_', 
+                          toString(lambda.factor), '.csv', sep = ''), sep = ',', row.names = F)
+
+colnames(result_coefs) = rep(label, each = nfolds)
+
+print(result_coefs)
+write.csv(as.matrix(result_coefs), paste(file.name, with.iq, '_coefs_', 
+                                         #toString(oversample.p), '_', 
+                                         toString(lambda.factor), '.csv', sep = ''), row.names = T)
+```
+
+# Heat map without IQ, Age and Gender regressed out:
+```{r, fig2, fig.height = 20, fig.width = 10, fig.align = "center"}
+library(RColorBrewer)
+library(gplots)
+
+data.heatmap = matrix(data = NA, nrow = 65, ncol = length(label))
+rownames(data.heatmap) = colnames(data3)[1:65]
+colnames(data.heatmap) = label
+
+for (i in 1:length(label)){
+    
+    i_label = label[i]
+    ######   define different groups  #####
+    y.ind = which(data3$DX_NUM == i_label)
+    data.1 = data3[y.ind, ]
+    if (length(unique(data.1$Sex))<2){
+        #variables <- c("SRSAge", "FSIQ_DQ")
+        variables <- c("SRSAge")
+    }else{
+        #variables <- c("Sex", "SRSAge", "FSIQ_DQ")
+        variables <- c("Sex", "SRSAge")
+    }
+    # regress out iq, age, gender for each group:
+    for (i.pred in 1:65){
+        outcome <- colnames(data.1)[i.pred]
+        
+        # our modeling effort, 
+        # fully parameterized!
+        f <- as.formula(
+          paste(outcome, 
+                paste(variables, collapse = " + "), 
+                sep = " ~ "))
+        #print(i_label)
+        #print(f)
+        
+        model <- lm(f, data = data.1)
+        res = resid(model)
+        data.heatmap[i.pred, i] = mean(res) 
+    }
+}
+
+#heatmap(data.heatmap, scale="column", cexRow=1.5, 
+#        labRow=rownames(data.heatmap), 
+#        col= colorRampPalette(brewer.pal(8, "Blues"))(25))
+
+#png(paste('heatmap_scores_gender_age_regressed.png', sep = ''), 
+png(paste('heatmap_scores_noasd_gender_age_regressed.png', sep = ''), 
+    width=3.25,height=13.25,units="in",res=1200, pointsize = 4)
+
+par(
+    mar      = c(5, 5, 2, 2),
+    xaxs     = "i",
+    yaxs     = "i",
+    cex.axis = 2,
+    cex.lab  = 2
+    )
+
+heatmap.2(data.heatmap, col=colorRampPalette(brewer.pal(8, "Blues"))(25),
+          symm=F,symkey=T,symbreaks=T,
+          colsep=c(1:7), rowsep=(1:65), 
+          key=T, density.info = "density", 
+          sepwidth=c(0.05,0.05), sepcolor="white", trace="none",
+          Rowv=T,Colv=T, scale="column", dendrogram="both", 
+          lhei = c(.5,10), lwid = c(1, 5), margins=c(8,8))
+
+dev.off()
+```
+
+## heat map of correlations between each item for each group separately:
+```{r, fig2, fig.height = 50, fig.width = 50, fig.align = "center"}
+library(gplots)
+library(RColorBrewer)
+
+data.heatmap = diag(x = 1, nrow = 65, ncol = 65)
+
+col.names = gsub("SRS_", "", colnames(data3)[1:65])
+
+rownames(data.heatmap) = col.names
+colnames(data.heatmap) = col.names
+
+data3.sexidx = data3
+data3.sexidx$Sex = as.numeric(data3$Sex)
+
+source("pcor.R")
+
+for (i in 1:length(label)){
+    
+    i_label = label[i]
+    ######   define different groups  #####
+    y.ind = which(data3.sexidx$DX_NUM == i_label)
+    data.1 = data3.sexidx[y.ind, ]
+
+    # compute correlation between each pair of 65 items:
+    for (i.pred in 1:64){
+        
+        for (i.pred2 in (i.pred+1):65){
+            #cor.out = pcor.test(data.1[, i.pred], data.1[, i.pred2], data.1[,c("SRSAge","Sex")], 
+            #                    method = 'spearman')
+            cor.out = cor.test(data.1[, i.pred], data.1[, i.pred2], method = 'spearman')
+            
+            data.heatmap[i.pred, i.pred2] = cor.out$estimate
+            data.heatmap[i.pred2, i.pred] = cor.out$estimate
+        }
+    }
+    
+
+    #heatmap(data.heatmap, scale="column", cexRow=1.5, 
+    #        labRow=rownames(data.heatmap), 
+    #        col= colorRampPalette(brewer.pal(8, "Blues"))(25))
+    data.heatmap[is.na(data.heatmap)] = 0
+    
+    #png(paste('heatmap_', toString(i), '.png', sep = ''), 
+    png(paste('heatmap_noasd_', toString(i), '.png', sep = ''), 
+        width=3.25,height=3.25,units="in",res=1200, pointsize = 4)
+    
+    par(
+          mar      = c(5, 5, 2, 2),
+          xaxs     = "i",
+          yaxs     = "i",
+          cex.axis = 2,
+          cex.lab  = 2
+        )
+    
+    heatmap.2(data.heatmap, col=colorRampPalette(brewer.pal(11,"RdBu")), trace="none",
+              symm=F,symkey=T,symbreaks=T,
+              Rowv=F,Colv=F, scale="none", dendrogram="none",
+              key=T, density.info = "density", 
+              lhei = c(1,4), lwid = c(1, 4), margins=c(5,5),
+              main = i_label)
+    par(cex.main=0.5)
+    dev.off()
+}
+```
+
+# analysis with 5 subscale scores:
+```{r}
+library(caret)
+library(ROSE)
+library(glmnet)
+
+#oversample.p = .4
+nfolds = 5
+
+col.name = colnames(data)
+#ind<-c(10:74,2,3,6)
+#data.raw <- data[, c("SRS_Awareness_Raw", "SRS_Cognition_Raw", "SRS_Communication_Raw", "SRS_Motivation_Raw", "SRS_Mannerisms_Raw", "Sex", "SRSAge", "FSIQ_DQ", "DX_NUM")]
+
+data.raw <- data[, c("SRS_Awareness_Raw", "SRS_Cognition_Raw", "SRS_Communication_Raw", "SRS_Motivation_Raw", "SRS_Mannerisms_Raw", "Sex_Num_0F1M", "SRSAge", "IQ_as_Tscore", "DX")]
+data.raw$Sex = data.raw$Sex_Num_0F1M
+data.raw$Sex_Num_0F1M = NULL
+#IQ must be in 2nd last column
+data.raw$FSIQ_DQ = data.raw$IQ_as_Tscore
+data.raw$IQ_as_Tscore = NULL
+# DX_NUM must be in last column
+data.raw$DX_NUM = data.raw$DX
+data.raw$DX = NULL
+
+
+temp=unique(data.raw$DX_NUM)
+
+ind_ds <- which(data.raw$DX_NUM == "DS")
+ind_sms <- which(data.raw$DX_NUM == "SMS")
+ind_ws <- which(data.raw$DX_NUM == "WS")
+
+#ind_1x <- which(data$DX_NUM == "+1X")
+#ind_1x1y <- which(data$DX_NUM == "+1X+1Y")
+#ind_1y <- which(data$DX_NUM == "+1Y")
+
+ind_1x <- which(data.raw$DX_NUM == "PLUSX")
+ind_1x1y <- which(data.raw$DX_NUM == "PLUSXY")
+ind_1y <- which(data.raw$DX_NUM == "PLUSY")
+ind_23x = which(data.raw$DX_NUM == 'PLUSXX')
+
+# with asd:
+#ind_asd <- which(data$DX_NUM == "ASD")
+#ind_23x <- which(data$DX_NUM == temp[7])
+#data.summaryscores <- data.raw[c(ind_asd, ind_ds, ind_sms, ind_ws, ind_1x, ind_23x, ind_1x1y, ind_1y), ]
+#
+## label = c("ASD", "DS", "SMS", "WS", "+1X", "+2/3X", "+1X+1Y", "+1Y")
+#label = c(as.character(temp[2]), as.character(temp[8]), as.character(temp[9]), as.character(temp[1]), 
+#          as.character(temp[4]), as.character(temp[7]), as.character(temp[5]), as.character(temp[6]))
+
+# no asd:
+#ind_23x <- which(data$DX_NUM == temp[5])
+data.summaryscores <- data.raw[c(ind_ds, ind_sms, ind_ws, ind_1x, ind_23x, ind_1x1y, ind_1y), ]
+
+label = c(as.character(temp[2]), as.character(temp[1]), as.character(temp[3]), as.character(temp[4]), 
+         as.character(temp[7]), as.character(temp[5]), as.character(temp[6]))
+
+
+data.summaryscores = data.summaryscores[complete.cases(data.summaryscores), ]
+
+nsize <- dim(data.summaryscores)[1]
+
+```
+
+# classification:
+```{r}
+# define variable to save results for each cv:
+result = as.data.frame(matrix(0, length(label)+1, 3*nfolds+1))
+colnames(result) = c("Syndrome", rep(c("accuracy", "sensitivity", "specitivity"), each = nfolds))
+result[1,-1] = rep(1:nfolds, 3) 
+result$Syndrome = c('CV', label)
+
+result.meanIQ = as.data.frame(matrix(NA, length(label)+1, 3*(nfolds+1)+1))
+colnames(result.meanIQ) = c("Syndrome", rep(c("SampleSize", "IQmean", "IQstd"), times = nfolds+1))
+result.meanIQ[1,-c(1:4)] = rep(1:nfolds, each = 3) 
+result.meanIQ$Syndrome = c('CV', label)
+
+# define varialb to save mean result aross CV:
+result.mean = as.data.frame(matrix(0, length(label), 4))
+colnames(result.mean) = c("Syndrome", "accuracy", "sensitivity", "specitivity")
+result.mean$Syndrome =  label
+
+if (with.iq == T){
+    x.index = 1:8
+}else{
+    x.index = 1:7 # without IQ:
+}
+coefs_list = vector("list", length = length(label))
+
+lambda.seq = 10^seq(-3, 100, length.out = 200)
+
+for (i in 1:length(label)){
+    #i = 1
+    i_label = label[i]
+    print(i_label)
+    ######   define different groups  #####
+    y.ind = which(data.summaryscores$DX_NUM == i_label)
+    num.y = length(y.ind)
+    
+    data.1 = data.summaryscores[y.ind, ]
+    data.0 = data.summaryscores[-y.ind,]
+    size.0 = ceiling(num.y/length(label))
+    
+    # mean and std of IQ for data.1:
+    result.meanIQ[i+1, 2] = length(data.1$FSIQ_DQ)
+    result.meanIQ[i+1, 3] = mean(data.1$FSIQ_DQ)
+    result.meanIQ[i+1, 4] = sd(data.1$FSIQ_DQ)
+    
+    
+    #set.seed(31)
+    #ind <- createDataPartition(data4$y, p=0.70)
+    #cv.fold = createFolds(data4$y, k = nfolds)
+    
+    acc = NULL
+    coefs.cv = vector('list', length = nfolds)
+    
+    for (i.cv in 1:nfolds) {
+        # check IQ and number of subjects for each CV:
+        
+        #data.train <- data4[cv.fold[[i.cv]], ]
+        #data.test <- data4[cv.fold[[i.cv]], ]
+        
+        # resample by disorder group to make each group has equal size
+        set.seed(i.cv)
+        data.0 <- data.0%>%
+            group_by(DX_NUM)%>%
+            sample_n(size = size.0, replace = T)%>%
+            as.data.frame()
+        
+        data.1$y = 1
+        data.0$y = -1
+        data4 = rbind(data.1, data.0)
+        
+        
+        if (with.iq == T){
+            # mean std of IQ for data.0:
+            result.meanIQ[i+1, (i.cv*3)+2] = length(data.0$FSIQ_DQ)
+            result.meanIQ[i+1, (i.cv*3)+3] = mean(data.0$FSIQ_DQ)
+            result.meanIQ[i+1, (i.cv*3)+4] = sd(data.0$FSIQ_DQ)
+        }
+        
+        ind <- createDataPartition(data4$y, p=0.70)
+        
+        data.train <- data4[ind$Resample1, ]
+        data.test <- data4[-ind$Resample1, ]
+        
+        #table(data.train$DX_NUM)
+        table(data.train$y)
+        table(data.test$y)
+        
+        # #Use function ovun.sample() to generate balanced data
+        #data1.imp.bal<-ovun.sample(y ~ ., data=data.train, method="both", p=oversample.p, seed=1342)$data
+        
+        #y.train<-data1.imp.bal$y
+        #take 1:67 which includes items 1 to 65 plus sex and age
+        #x.train<-data1.imp.bal[, x.index]
+        
+        y.train = data.train$y
+        y.train<-as.matrix(y.train)
+        
+        x.train = data.train[, x.index]
+        x.train$Sex <- as.numeric(x.train$Sex)
+        x.train<-as.matrix(x.train)
+        
+        #lambda.seq <- lambdaseq(x.train, y.train)$lambda
+        
+        y.test<-data.test$y
+        y.test<-as.matrix(y.test)
+        #take 1:67 which includes items 1 to 65 plus sex and age
+        x.test<-data.test[, x.index]
+        x.test$Sex <- as.numeric(x.test$Sex)
+        x.test<-as.matrix(x.test)
+        	
+        # 10-fold Cross validation for each alpha = 0, 0.1, ... , 0.9, 1.0
+        # (For plots on Right)
+    
+        cv.fit =  cv.glmnet(x.train, y.train, nfolds=5, family = "binomial", 
+                            standardize = T, 
+                            #lambda = lambda.seq,
+                            type.measure = "class", alpha = 1)
+        #print(cv.fit)
+        #print('lasso finished..')
+        yhat = predict(cv.fit, s=cv.fit$lambda.1se, newx=x.test,type="class")
+        
+        #print(table(data.frame(ypred = yhat, y = y.test)))
+        acc.cv = compute.acc(yhat, y.test)
+        acc = rbind(acc, acc.cv)
+        
+        result[which(result$Syndrome == i_label), which(result[1,] == i.cv)] = acc.cv
+        
+        coefs = coef(cv.fit, s = cv.fit$lambda.1se)
+        coefs.cv[[i.cv]] = coefs
+    
+    }
+    
+    result.mean[which(result.mean$Syndrome == i_label), 'accuracy'] = mean(acc[,1], na.rm = TRUE)
+    result.mean[which(result.mean$Syndrome == i_label), 'sensitivity'] = mean(acc[,2], na.rm = TRUE)
+    result.mean[which(result.mean$Syndrome == i_label), 'specitivity'] = mean(acc[,3], na.rm = TRUE)
+    
+    coefs.cv = do.call(cbind, coefs.cv)
+    coefs.cv = rbind(1:nfolds, coefs.cv)
+    rownames(coefs.cv)[1] = 'CV'
+    coefs_list[[i]] = as.matrix(coefs.cv)
+
+}
+
+result_coefs = do.call(cbind, coefs_list)
+```
+
+```{r}
+print(result)
+#file.name = 'classification_one_vs_all_lasso_ballancedgroup_iq_'
+file.name = 'classification_noasd_one_vs_all_lasso_ballancedgroup_iq_'
+
+write.table(result.mean, paste(file.name, with.iq, 
+                               #'_', toString(oversample.p), 
+                               '.csv', sep = ''), sep = ',', row.names = F)
+
+if (with.iq==T){
+    write.table(result.meanIQ, paste(file.name, with.iq, '_meanIQ',
+                                     #'_', toString(oversample.p), 
+                                     '.csv', sep = ''), sep = ',', row.names = F)
+}
+
+write.table(result, paste(file.name, with.iq, '_cv', 
+                          #'_', toString(oversample.p), 
+                          '.csv', sep = ''), sep = ',', row.names = F)
+
+colnames(result_coefs) = rep(label, each = nfolds)
+print(result_coefs)
+write.csv(result_coefs, paste(file.name, with.iq, '_coefs', 
+                              #'_', toString(oversample.p), 
+                              '.csv', sep = ''), row.names = T)
+```
+
+
+# Heat map without IQ, Age and Gender regressed out:
+```{r}
+library(gplots)
+library(RColorBrewer)
+
+data.heatmap = matrix(data = NA, nrow = 5, ncol = length(label))
+rownames(data.heatmap) = colnames(data.summaryscores)[1:5]
+colnames(data.heatmap) = label
+
+for (i in 1:length(label)){
+    
+    i_label = label[i]
+    ######   define different groups  #####
+    y.ind = which(data.summaryscores$DX_NUM == i_label)
+    data.1 = data.summaryscores[y.ind, ]
+    if (length(unique(data.1$Sex))<2){
+        #variables <- c("SRSAge", "FSIQ_DQ")
+        variables <- c("SRSAge")
+    }else{
+        #variables <- c("Sex", "SRSAge", "FSIQ_DQ")
+        variables <- c("Sex", "SRSAge")
+    }
+    # regress out iq, age, gender for each group:
+    for (i.pred in 1:5){
+        outcome <- colnames(data.1)[i.pred]
+        
+        
+        # our modeling effort, 
+        # fully parameterized!
+        f <- as.formula(
+          paste(outcome, 
+                paste(variables, collapse = " + "), 
+                sep = " ~ "))
+        #print(i_label)
+        #print(f)
+        
+        model <- lm(f, data = data.1)
+        res = resid(model)
+        data.heatmap[i.pred, i] = mean(res) 
+    }
+}
+
+#heatmap(data.heatmap, scale="column", cexRow=1.5, labRow=rownames(data.heatmap), col= colorRampPalette(brewer.pal(8, "Blues"))(25))
+
+
+#png(paste('heatmap_summaryscores_gender_age_regressed.png', sep = ''), 
+png(paste('heatmap_noasd_summaryscores_gender_age_regressed.png', sep = ''), 
+    width=3.25,height=3.25,units="in",res=1200, pointsize = 4)
+
+par(
+    mar      = c(5, 5, 2, 2),
+    xaxs     = "i",
+    yaxs     = "i",
+    cex.axis = 2,
+    cex.lab  = 2
+    )
+
+heatmap.2(data.heatmap, col=colorRampPalette(brewer.pal(8, "Blues"))(25),
+          symm=F,symkey=T,symbreaks=T,
+          colsep=c(1:7), rowsep=(1:5), cexRow = 1, cexCol = 1,
+          key=T, density.info = "density", 
+          sepwidth=c(0.05,0.05), sepcolor="white", trace="none",
+          Rowv=T,Colv=T, scale="column", dendrogram="both", 
+          lhei = c(1,5), lwid = c(1, 5), margins=c(5,12))
+
+dev.off()
+
+```
+
+## heat map of correlations between each item for each group separately:
+```{r, fig2, fig.height = 50, fig.width = 50, fig.align = "center"}
+library(gplots)
+library(RColorBrewer)
+
+data.heatmap = diag(x = 1, nrow = 5, ncol = 5)
+
+col.names = gsub("SRS_", "", colnames(data.summaryscores)[1:5])
+
+rownames(data.heatmap) = col.names
+colnames(data.heatmap) = col.names
+
+data3.sexidx = data.summaryscores
+data3.sexidx$Sex = as.numeric(data.summaryscores$Sex)
+
+source("pcor.R")
+
+for (i in 1:length(label)){
+    
+    i_label = label[i]
+    ######   define different groups  #####
+    y.ind = which(data3.sexidx$DX_NUM == i_label)
+    data.1 = data3.sexidx[y.ind, ]
+
+    # compute correlation between each pair of 65 items:
+    for (i.pred in 1:4){
+        
+        for (i.pred2 in (i.pred+1):5){
+            #cor.out = pcor.test(data.1[, i.pred], data.1[, i.pred2], data.1[,c("SRSAge","Sex")], 
+            #                    method = 'pearson')
+            cor.out = cor.test(data.1[, i.pred], data.1[, i.pred2], method = 'pearson')
+            
+            data.heatmap[i.pred, i.pred2] = cor.out$estimate
+            data.heatmap[i.pred2, i.pred] = cor.out$estimate
+        }
+    }
+    
+
+    #heatmap(data.heatmap, scale="column", cexRow=1.5, 
+    #        labRow=rownames(data.heatmap), 
+    #        col= colorRampPalette(brewer.pal(8, "Blues"))(25))
+    data.heatmap[is.na(data.heatmap)] = 0
+    
+    #png(paste('heatmap_summaryscores', toString(i), '.png', sep = ''), 
+    png(paste('heatmap_noasd_summaryscores', toString(i), '.png', sep = ''), 
+        width=3.25,height=3.25,units="in",res=1200, pointsize = 4)
+    
+    par(
+          mar      = c(5, 5, 2, 2),
+          xaxs     = "i",
+          yaxs     = "i",
+          cex.axis = 2,
+          cex.lab  = 2
+        )
+    
+    heatmap.2(data.heatmap, col=colorRampPalette(brewer.pal(11,"RdBu"))(n = 25), trace="none",
+              symm=F,symkey=T,symbreaks=T,
+              Rowv=F,Colv=F, scale="none", dendrogram="none",
+              key=T, density.info = "density", 
+              lhei = c(1,4), lwid = c(1, 4), margins=c(14,14),
+              main = i_label)
+    par(cex.main=0.5)
+    dev.off()
+}
+```
+
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

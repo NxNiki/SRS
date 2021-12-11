@@ -1,0 +1,91 @@
+---
+title: "heat_map"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+rm(list = ls())
+
+library(RColorBrewer)
+library(gplots)
+
+#data.heatmap = read.table('HEAT - Items Avg Score by Group - AGE SEX COVARIED.csv', header = T, sep = ',')
+#png(paste('heatmap_scores_gender_age_regressed.png', sep = ''), 
+#   width=3.25,height=13.25,units="in",res=1200, pointsize = 4)
+
+data.heatmap = read.table('HEAT - Items Avg Score by Group- AGE SEX IQ COVARIED.csv', header = T, sep = ',')
+png(paste('heatmap_scores_gender_age_iq_regressed.png', sep = ''), 
+    width=3.25,height=13.25,units="in",res=1200, pointsize = 4)
+
+par(
+    mar      = c(5, 5, 2, 2),
+    xaxs     = "i",
+    yaxs     = "i",
+    cex.axis = 2,
+    cex.lab  = 2
+    )
+
+heatmap.2(as.matrix(data.heatmap), col=colorRampPalette(brewer.pal(8, "Blues"))(25),
+          symm=F,symkey=T,symbreaks=T,
+          colsep=c(1:dim(data.heatmap)[2]), rowsep=(1:dim(data.heatmap)[1]), 
+          key=T, density.info = "density", 
+          sepwidth=c(0.05,0.05), sepcolor="white", trace="none",
+          Rowv=T,Colv=T, scale="none", dendrogram="both", 
+          lhei = c(.5,10), lwid = c(1, 5), margins=c(8,8))
+
+dev.off()
+
+```
+
+```{r}
+
+#data.heatmap = read.table('Heat - comps -Avg Score by Group - AGE SEX COVARIED.csv', header = T, sep = ',')
+#png(paste('heatmap_summaryscores_gender_age_regressed.png', sep = ''), 
+#    width=3.25,height=3.25,units="in",res=1200, pointsize = 4)
+
+data.heatmap = read.table('Heat - comps - Avg Score by Group - AGE SEX IQ COVARIED.csv', header = T, sep = ',')
+png(paste('heatmap_summaryscores_gender_age_iq_regressed.png', sep = ''), 
+    width=3.25,height=3.25,units="in",res=1200, pointsize = 4)
+
+
+rownames(data.heatmap) = c("Aware", "Cog", "Comm", "Motiv", "RBR")
+par(
+    mar      = c(5, 5, 2, 2),
+    xaxs     = "i",
+    yaxs     = "i",
+    cex.axis = 2,
+    cex.lab  = 2
+    )
+
+heatmap.2(as.matrix(data.heatmap), col=colorRampPalette(brewer.pal(8, "Blues"))(25),
+          symm=F,symkey=T,symbreaks=T,
+          colsep=c(1:dim(data.heatmap)[2]), rowsep=(1:dim(data.heatmap)[1]), cexRow = 1, cexCol = 1,
+          key=T, density.info = "density", 
+          sepwidth=c(0.05,0.05), sepcolor="white", trace="none",
+          Rowv=T,Colv=T, scale="none", dendrogram="both", 
+          lhei = c(1,4.5), lwid = c(1, 5), margins=c(5,5))
+
+dev.off()
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
